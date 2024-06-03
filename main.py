@@ -110,7 +110,7 @@ for i in range(I):
 #Psi al menos igual a la expresion Phi - (1 - M) * Xij
 for i in range(I):
     for j in range(J):
-        model.addConstr(Psi[i,j] <= Phi[i,j] - (1 - 5000) * X[i,j])
+        model.addConstr(Psi[i,j] >= Phi[i,j] - (1 - 5000) * X[i,j])
 
 ####################
 # Función Objetivo #
