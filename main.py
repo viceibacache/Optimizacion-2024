@@ -37,8 +37,8 @@ ponderadores = [1, 0.143, 0.143, 0.143, 0.143, 0.143, 0.143]
 #############
 # Conjuntos #
 #############
-I = 100 #Reemplazar por número de estudiantes
-J = 50 #Reemplazar por número de colegios
+I = 10 #Reemplazar por número de estudiantes
+J = 5 #Reemplazar por número de colegios
 
 ##############
 # Parametros #
@@ -89,15 +89,6 @@ Psi = model.addVars(I, J, name = 'Psi', vtype = GRB.CONTINUOUS) #Variable auxili
 # Restricciones #
 #################
 
-# Prueba
-
-for i in range(I):
-    for j in range(J):
-        if Punt[i][j] - b[j] >= 0:
-            model.addConstr(Omega[i, j] == 1, "Omega_constraint")
-        else:
-            model.addConstr(Omega[i, j] == 0, "Omega_constraint")
-
 #Cantidad de alumnos admitidos
 for j in range(J):
     model.addConstr(Y[j] == gp.quicksum(X[i,j] for i in range(I)), name=f"R cantidad alumnos admitidos {j}")
@@ -124,7 +115,7 @@ for i in range(I):
 #Asignar valor de variable auxiliar Phi
 for i in range(I):
     for j in range(J):
-        model.addConstr(Psi[i,j] == 
+        model.addConstr(Phi[i,j] == 
                         Omega[i,j]*(Punt[i][j] - b[j]) + (1 - Omega[i,j])*(b[j] - Punt[i][j]), name=f"Phi {i} {j}")
 
 #Psi no puede exceder Phi
