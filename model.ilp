@@ -1,0 +1,14 @@
+\ Model Admisión Sistema Escolar_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+Minimize
+ 
+Subject To
+ Phi_4_0: Phi[4,0] = 827
+ Psi_<_M*X_4_0: - 1000 X[4,0] + Psi[4,0] <= 0
+ Psi_>_Phi_-_M*X_4_0: - 999 X[4,0] - Phi[4,0] + Psi[4,0] >= 0
+Bounds
+ Phi[4,0] free
+ Psi[4,0] free
+Binaries
+ X[4,0]
+End

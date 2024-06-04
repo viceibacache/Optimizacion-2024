@@ -37,8 +37,9 @@ ponderadores = [1, 0.143, 0.143, 0.143, 0.143, 0.143, 0.143]
 #############
 # Conjuntos #
 #############
-I = 10 #Reemplazar por número de estudiantes
-J = 5 #Reemplazar por número de colegios
+I = 100 #Reemplazar por número de estudiantes
+J = 50 #Reemplazar por número de colegios
+M = 1000
 
 ##############
 # Parametros #
@@ -48,7 +49,6 @@ b = ranking_establecimiento
 c = capacidad_total_establecimiento
 d = estudiante_con_hermanos_en_establecimiento
 e = estudiante_hijo_de_funcionario_en_establecimiento
-f = estudiante_es_PESD
 h = estudante_postula_a_establecimiento
 ip = estudiante_reside_en_la_misma_comuna_que_el_establecimiento
 jp = estudiante_situacion_economica_inferior_al_promedio_en_comuna_de_establecimiento
@@ -63,14 +63,13 @@ gamma = ponderadores[2] #poderador_hermanos_en_establecimiento
 delta = ponderadores[3] #poderador_situacion_economica_menor
 epsilon = ponderadores[4] #ponderador_misma_comuna
 zeta = ponderadores[5] #ponderador_estudiante_vuelve
-eta = ponderadores[6] #ponderador_estudiante_es_PESD
 
-Punt = [[0 for j in range(J)] for i in range(I)]
+P = [[0 for j in range(J)] for i in range(I)]
 
 #Definición de parametro auxiliar
 for i in range(I):
     for j in range(J):
-        Punt[i][j] = (alpha*a[i] + (b[j] - a[i]) * (beta*e[i][j] + gamma*d[i][j] + delta*jp[i][j] + epsilon*ip[i][j] + zeta*k[i][j] + eta*f[i])) * h[i][j]
+        P[i][j] = (alpha*a[i] + (b[j] - a[i]) * (beta*e[i][j] + gamma*d[i][j] + delta*jp[i][j] + epsilon*ip[i][j] + zeta*k[i][j])) * 1 - 1/2 * (1 - h[i][j])
 
 ###################################
 # Creación del Modelo Y Variables #
@@ -80,8 +79,6 @@ model = Model('Admisión Sistema Escolar')
 
 X = model.addVars(I, J, name = 'X', vtype = GRB.BINARY) #Se entrega vacante a I en J
 Y = model.addVars(J, name = 'Y', vtype = GRB.INTEGER) #Cantidad vacantes ocupadas en J
-Z = model.addVars(J, name = 'Z', vtype = GRB.INTEGER) #Cantidad estudiantes prioritarios en J
-Omega = model.addVars(I, J, name = 'Omega', vtype = GRB.BINARY) #P es mayor o igual a b
 Phi = model.addVars(I, J, name = 'Phi', vtype = GRB.CONTINUOUS) #Variable auxiliar de diferencia Absoluta
 Psi = model.addVars(I, J, name = 'Psi', vtype = GRB.CONTINUOUS) #Variable auxiliar linealidad
 
@@ -101,37 +98,18 @@ for j in range(J):
 for i in range(I):
     model.addConstr(gp.quicksum(X[i,j] for j in range(J)) == 1, name=f"R 1 colegio por alumno admitidos {i}")
 
-
-# Esto lo saque porque puede que nunca se cumpla si hay pocos pesd hay que revisarlo
-
-# #Cantidad de alumnos con prioridad por ser PESD
-# for j in range(J):
-#     model.addConstr(Z[j] == gp.quicksum(X[i,j]*k[i,j] for i in range(I)))
-
-# #Limitar cantidad minima de PESD
-# for j in range(J):
-#     model.addConstr(Z[j] >= c[j] * 0.15)
-
 #Asignar valor de variable auxiliar Phi
 for i in range(I):
     for j in range(J):
-        model.addConstr(Phi[i,j] == 
-                        Omega[i,j]*(Punt[i][j] - b[j]) + (1 - Omega[i,j])*(b[j] - Punt[i][j]), name=f"Phi {i} {j}")
+        model.addConstr(Phi[i,j] == abs(P[i][j] - b[j]), name=f"Phi {i} {j}")
 
-#Psi no puede exceder Phi
+# Psi = Phi si X = 1, Psi = 0 si X = 0
 for i in range(I):
     for j in range(J):
-        model.addConstr(Psi[i,j] <= Omega[i,j], name=f"Psi < Phi {i} {j}")
-
-#Psi no puede exceder el valor M = 5000 * Xij
-for i in range(I):
-    for j in range(J):
-        model.addConstr(Psi[i,j] <= 5000 * X[i,j], name=f"Psi < M*X {i} {j}")
-
-#Psi al menos igual a la expresion Phi - (1 - M) * Xij
-for i in range(I):
-    for j in range(J):
-        model.addConstr(Psi[i,j] >= Phi[i,j] - (1 - 5000) * X[i,j], name=f"Psi > Phi - M*X {i} {j}")
+        model.addConstr(Psi[i,j] <= Phi[i,j] + (1 - X[i,j]) * M)
+        model.addConstr(Psi[i,j] >= Phi[i,j] - (1 - X[i,j]) * M)
+        model.addConstr(Psi[i,j] <= X[i,j] * M)
+        model.addConstr(Psi[i,j] >= X[i,j])
 
 ####################
 # Función Objetivo #
@@ -145,14 +123,20 @@ model.update()
 # Recopilación de Datos #
 #########################
 model.optimize()
+
 if model.Status == GRB.OPTIMAL:
     print("El modelo es optimo")
-    tabla = pd.DataFrame(0, index = [f"Alumno {i}" for i in range(I)], columns = ["Establecimiento"])
+    tabla = pd.DataFrame(0, index=[f"Alumno {i}" for i in range(I)], columns=["Establecimiento", "Diferencia Puntajes"], dtype=float)
+
     for i in range(I):
         for j in range(J):
-            if X[i,j].X == 1:
+            if X[i, j].X == 1:
                 tabla.at[f"Alumno {i}", "Establecimiento"] = j
-    tabla.to_excel('tabla_colegios_de_estudiantes.xlsx')
+                tabla.at[f"Alumno {i}", "Diferencia Puntajes"] = abs(a[i] - b[j])
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(script_dir, 'tabla_colegios_de_estudiantes.xlsx')
+    tabla.to_excel(file_path)
 
 elif model.status == GRB.INFEASIBLE:
     # Compute the IIS
@@ -169,7 +153,6 @@ elif model.status == GRB.INFEASIBLE:
             print(f"Infeasible lower bound: {v.varName}")
         if v.IISUB:
             print(f"Infeasible upper bound: {v.varName}")
-
 
 else:
     print("El modelo no es optimo")
